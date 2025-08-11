@@ -507,9 +507,24 @@ class AssignmentTrackerApp(QMainWindow):
             QMessageBox.critical(self, "Error", error_msg)
 
     def process_file(self, file_path):
+        # Extract filename and clean the path to exclude everything from "dropbox" and before
         file_name = os.path.basename(file_path)
-        self.status_text.append(f"📁 Processing file: {file_name}")
-        self.status_text.append(f"📂 Full path: {file_path}")
+        
+        # If the path contains "dropbox", extract everything after it
+        if "dropbox" in file_path.lower():
+            # Find the position of "dropbox" (case insensitive)
+            dropbox_index = file_path.lower().find("dropbox")
+            # Extract the path from after "dropbox/"
+            cleaned_path = file_path[dropbox_index:]
+            # Remove "dropbox/" or "dropbox\" from the beginning
+            if cleaned_path.lower().startswith("dropbox/") or cleaned_path.lower().startswith("dropbox\\"):
+                cleaned_path = cleaned_path[8:]  # Remove "dropbox/" or "dropbox\"
+            self.status_text.append(f"📁 Processing file: {file_name}")
+            self.status_text.append(f"📂 Cleaned path: {cleaned_path}")
+        else:
+            # If no "dropbox" in path, just use the filename
+            self.status_text.append(f"📁 Processing file: {file_name}")
+            self.status_text.append(f"📂 Original path: {file_path}")
         
         # Check if file exists in Dropbox
         try:
@@ -532,6 +547,11 @@ def main():
     if len(sys.argv) > 1:
         file_path = sys.argv[1]
         print(f"Opened with file: {file_path}")
+        # Extract just the filename for display
+        file_name = os.path.basename(file_path)
+        print(f"Processing file: {file_name}")
+    else:
+        print("No file specified via command line")
     
     window = AssignmentTrackerApp(file_path)
     window.show()

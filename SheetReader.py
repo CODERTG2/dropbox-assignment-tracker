@@ -74,7 +74,7 @@ class SheetReader:
     def get_assignee(self, assignment):
         self.get_records()
         try:
-            return self.records.loc[self.records['Assignment'] == assignment, 'Assignee'].values[0]
+            return self.records.loc[self.records['Assignment'] == assignment, 'Assignee Name'].values[0]
         except Exception as e:
             print(f"Error fetching assignee for {assignment}: {e}")
             return None
