@@ -29,7 +29,7 @@ jobs:
         pyinstaller main-windows.spec --clean --noconfirm
     
     - name: Upload Windows artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: assignment-tracker-windows
         path: dist/assignment-tracker.exe
@@ -70,7 +70,7 @@ jobs:
           "dist/"
     
     - name: Upload macOS artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: assignment-tracker-macos
         path: |
@@ -98,7 +98,7 @@ jobs:
         pyinstaller main.spec --clean --noconfirm
     
     - name: Upload Linux artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: assignment-tracker-linux
         path: dist/assignment-tracker/
@@ -110,7 +110,7 @@ jobs:
     
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
