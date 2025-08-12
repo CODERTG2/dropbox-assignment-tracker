@@ -1,6 +1,4 @@
 from SheetReader import SheetReader
-from DropboxClient import DropboxClient
-from dotenv import load_dotenv
 import os
 import sys
 
@@ -10,6 +8,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                            QScrollArea, QMessageBox, QProgressBar, QSizePolicy)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QPalette, QColor
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -38,9 +37,6 @@ class AssignmentTrackerApp(QMainWindow):
         self.setup_ui()
         self.setup_clients()
         self.apply_modern_styling()
-        
-        if file_path:
-            self.process_file(file_path)
     
     def setup_ui(self):
         self.setWindowTitle("Assignment Tracker")
@@ -313,7 +309,6 @@ class AssignmentTrackerApp(QMainWindow):
     def setup_clients(self):
         try:
             self.status_text.append("Initializing clients...")
-            self.dropbox_client = DropboxClient(os.getenv("DROPBOXKEY"), "Northside Debate 2025-2026")
             self.sheet_reader = SheetReader("credentials.json", os.getenv("SHEET_ID"))
             self.status_text.append("Clients initialized successfully")
             self.load_assignments()
@@ -437,44 +432,17 @@ class AssignmentTrackerApp(QMainWindow):
             elif self.done_radio.isChecked():
                 progress = "Done"
             
-            # Get file name and find in Dropbox
-            file_name = os.path.basename(self.file_path)
-            dropbox_path = self.dropbox_client.find_file_path(file_name)
-            
-            if not dropbox_path:
-                self.status_text.append(f"File {file_name} not found in Dropbox")
-                dropbox_path = f"/path/to/{file_name}"  # Fallback path
-            
             self.status_text.append(f"Saving assignment: {self.current_assignment}")
             
             # Update spreadsheet
             self.sheet_reader.update_record(
                 assignment=self.current_assignment,
-                file_path=dropbox_path,
+                file_path=self.file_path,
                 description=description,
                 due_date=due_date,
                 progress=progress,
                 assignee=assignee
             )
-            
-            # Update or add Dropbox metadata
-            metadata = {
-                "assignment_name": self.current_assignment,
-                "description": description,
-                "due_date": due_date,
-                "progress": progress,
-                "assignee": assignee
-            }
-            
-            if self.is_updating:
-                # Update existing metadata
-                for key, value in metadata.items():
-                    self.dropbox_client.update_metadata(file_name, key, value)
-                self.status_text.append(f"Updated metadata for {file_name}")
-            else:
-                # Add new metadata
-                self.dropbox_client.add_metadata(file_name, metadata)
-                self.status_text.append(f"Added metadata for {file_name}")
             
             self.status_text.append(f"Successfully saved assignment: {self.current_assignment}")
             QMessageBox.information(self, "Success", f"Assignment '{self.current_assignment}' saved successfully!")
@@ -483,36 +451,6 @@ class AssignmentTrackerApp(QMainWindow):
             error_msg = f"Failed to save assignment: {str(e)}"
             self.status_text.append(f"{error_msg}")
             QMessageBox.critical(self, "Error", error_msg)
-
-    def process_file(self, file_path):
-        # Extract filename and clean the path to exclude everything from "dropbox" and before
-        file_name = os.path.basename(file_path)
-        
-        # If the path contains "dropbox", extract everything after it
-        if "dropbox" in file_path.lower():
-            # Find the position of "dropbox" (case insensitive)
-            dropbox_index = file_path.lower().find("dropbox")
-            # Extract the path from after "dropbox/"
-            cleaned_path = file_path[dropbox_index:]
-            # Remove "dropbox/" or "dropbox\" from the beginning
-            if cleaned_path.lower().startswith("dropbox/") or cleaned_path.lower().startswith("dropbox\\"):
-                cleaned_path = cleaned_path[8:]  # Remove "dropbox/" or "dropbox\"
-            self.status_text.append(f"Processing file: {file_name}")
-            self.status_text.append(f"Cleaned path: {cleaned_path}")
-        else:
-            # If no "dropbox" in path, just use the filename
-            self.status_text.append(f"Processing file: {file_name}")
-            self.status_text.append(f"Original path: {file_path}")
-        
-        # Check if file exists in Dropbox
-        try:
-            dropbox_path = self.dropbox_client.find_file_path(file_name)
-            if dropbox_path:
-                self.status_text.append(f"Found in Dropbox: {dropbox_path}")
-            else:
-                self.status_text.append("File not found in Dropbox folder")
-        except Exception as e:
-            self.status_text.append(f"Error checking Dropbox: {str(e)}")
 
 def main():
     app = QApplication(sys.argv)
@@ -526,12 +464,13 @@ def main():
         file_path = sys.argv[1]
         print(f"Opened with file: {file_path}")
         # Extract just the filename for display
-        file_name = os.path.basename(file_path)
-        print(f"Processing file: {file_name}")
+        actual_file_path = os.path.basename(file_path)
+
+        print(f"Processing file: {actual_file_path}")
     else:
         print("No file specified via command line")
-    
-    window = AssignmentTrackerApp(file_path)
+
+    window = AssignmentTrackerApp(actual_file_path)
     window.show()
     
     sys.exit(app.exec_())
