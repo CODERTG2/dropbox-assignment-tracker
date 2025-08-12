@@ -19,7 +19,18 @@ Before installing, make sure you have:
 
 ## 🚀 Quick Start
 
-### Option 1: Automatic Installation (Recommended)
+### Option 1: Mac Installer (Recommended for macOS)
+
+Download and run the Mac installer: `AssignmentTracker-Installer.dmg`
+
+1. Download the DMG file from the [releases](../../releases) section
+2. Open the DMG file
+3. Drag the Assignment Tracker app to your Applications folder
+4. Launch the app from Applications
+
+**Windows installer coming soon!**
+
+### Option 2: Script Installation
 
 **macOS/Linux:**
 ```bash
@@ -32,7 +43,7 @@ chmod +x install.sh
 install.bat
 ```
 
-### Option 2: Manual Installation
+### Option 3: Manual Installation
 
 1. **Clone or download this repository**
 2. **Install dependencies:**
@@ -141,13 +152,15 @@ pyinstaller --onefile --add-data "setup_wizard.py:." main.py
 
 ```
 assignment-tracker/
-├── main.py              # Main application
-├── setup_wizard.py      # Secure credential setup
-├── SheetReader.py       # Google Sheets integration
-├── requirements.txt     # Python dependencies
-├── install.sh          # macOS/Linux installer
-├── install.bat         # Windows installer
-└── README.md           # This file
+├── main.py                           # Main application
+├── setup_wizard.py                   # Secure credential setup
+├── SheetReader.py                    # Google Sheets integration
+├── requirements.txt                  # Python dependencies
+├── install.sh                       # macOS/Linux installer script
+├── install.bat                      # Windows installer script
+├── installers/
+│   └── AssignmentTracker-Installer.dmg  # Mac installer package
+└── README.md                        # This file
 ```
 
 ## ⚠️ Important Security Notes
