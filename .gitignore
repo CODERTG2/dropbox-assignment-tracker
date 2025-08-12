@@ -40,6 +40,8 @@ dist/
 *.exe
 *.app
 *.spec
+installers/
+*.dmg
 
 # IDE and editors
 .vscode/

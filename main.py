@@ -6,10 +6,29 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                            QWidget, QLabel, QPushButton, QTextEdit, QComboBox, 
                            QLineEdit, QRadioButton, QButtonGroup, QFrame, 
                            QScrollArea, QMessageBox, QProgressBar, QSizePolicy, QDialog)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QEvent
 from PyQt5.QtGui import QFont, QPalette, QColor
 from dotenv import load_dotenv
 from setup_wizard import run_setup_wizard
+
+class FileOpenApplication(QApplication):
+    """Custom QApplication that handles file open events on macOS"""
+    def __init__(self, argv):
+        super().__init__(argv)
+        self.file_to_open = None
+        self.main_window = None
+        
+    def event(self, event):
+        if event.type() == QEvent.FileOpen:
+            file_path = event.file()
+            self.file_to_open = file_path
+            print(f"File open event received: {file_path}")
+            
+            # If main window is already created, process the file immediately
+            if self.main_window and hasattr(self.main_window, 'open_file'):
+                self.main_window.open_file(file_path)
+            return True
+        return super().event(event)
 
 class LoadAssignmentsThread(QThread):
     """Thread for loading assignments to prevent UI blocking"""
@@ -41,6 +60,30 @@ class AssignmentTrackerApp(QMainWindow):
         self.setup_ui()
         self.setup_clients()
         self.apply_modern_styling()
+        
+        # If a file path was provided during initialization, show it in status
+        if self.file_path:
+            self.open_file(self.file_path)
+    
+    def process_dropbox_path(self, file_path):
+        """Extract the path after 'dropbox' (case insensitive)"""
+        if not file_path:
+            return file_path
+            
+        # Normalize the path and convert to lowercase for searching
+        normalized_path = file_path.lower()
+        
+        # Find 'dropbox' in the path (case insensitive)
+        dropbox_index = normalized_path.find('dropbox')
+        if dropbox_index != -1:
+            # Find the start of the path after 'dropbox'
+            # We need to find the next '/' after 'dropbox'
+            start_index = file_path.find('/', dropbox_index + len('dropbox'))
+            if start_index != -1:
+                return file_path[start_index:]
+        
+        # If 'dropbox' not found, return the original path
+        return file_path
     
     def check_configuration(self):
         """Check if configuration exists, run setup wizard if not"""
@@ -476,10 +519,13 @@ class AssignmentTrackerApp(QMainWindow):
             
             self.status_text.append(f"Saving assignment: {self.current_assignment}")
             
+            # Process the file path to keep only everything after 'dropbox'
+            processed_file_path = self.process_dropbox_path(self.file_path)
+            
             # Update spreadsheet
             self.sheet_reader.update_record(
                 assignment=self.current_assignment,
-                file_path=self.file_path,
+                file_path=processed_file_path,
                 description=description,
                 due_date=due_date,
                 progress=progress,
@@ -506,23 +552,55 @@ class AssignmentTrackerApp(QMainWindow):
                 QMessageBox.information(self, "Settings Updated", 
                     "Settings updated successfully! Please restart the application for changes to take effect.")
                 sys.exit(0)
+    
+    def open_file(self, file_path):
+        """Handle opening a file with the application"""
+        if file_path and os.path.exists(file_path):
+            self.file_path = file_path
+            print(f"Opened file: {file_path}")
+            self.status_text.append(f"Opened file: {os.path.basename(file_path)}")
+            
+            # If there's an active assignment, ask if they want to associate the file
+            if self.current_assignment:
+                reply = QMessageBox.question(self, "Associate File", 
+                    f"Do you want to associate this file with the current assignment?\n\n"
+                    f"File: {os.path.basename(file_path)}\n"
+                    f"Assignment: {self.current_assignment.get('Title', 'Unknown')}",
+                    QMessageBox.Yes | QMessageBox.No)
+                
+                if reply == QMessageBox.Yes:
+                    # Update the assignment with the processed file path (keeping only everything after dropbox)
+                    processed_file_path = self.process_dropbox_path(file_path)
+                    self.current_assignment['File Path'] = processed_file_path
+                    self.save_assignment()
+        else:
+            print(f"File not found or invalid: {file_path}")
+            self.status_text.append(f"Error: Could not open file {file_path}")
 
 def main():
-    app = QApplication(sys.argv)
+    app = FileOpenApplication(sys.argv)
     
     # Set application properties for better styling
     app.setStyle('Fusion')
     
-    # Get file path from command line arguments
+    # Get file path from command line arguments or file open event
     file_path = None
     if len(sys.argv) > 1:
         file_path = sys.argv[1]
-        print(f"Processing file: {file_path}")
+        print(f"Processing file from command line: {file_path}")
+    elif app.file_to_open:
+        file_path = app.file_to_open
+        print(f"Processing file from open event: {file_path}")
     else:
-        print("No file specified via command line")
+        print("No file specified")
 
     window = AssignmentTrackerApp(file_path)
+    app.main_window = window  # Store reference for file open events
     window.show()
+    
+    # Handle file from file open event if it came after window creation
+    if app.file_to_open and not file_path:
+        window.open_file(app.file_to_open)
     
     sys.exit(app.exec_())
 
