@@ -39,7 +39,7 @@ build/
 dist/
 *.exe
 *.app
-*.dmg
+*.spec
 
 # IDE and editors
 .vscode/

@@ -5,12 +5,11 @@ import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
                            QWidget, QLabel, QPushButton, QTextEdit, QComboBox, 
                            QLineEdit, QRadioButton, QButtonGroup, QFrame, 
-                           QScrollArea, QMessageBox, QProgressBar, QSizePolicy)
+                           QScrollArea, QMessageBox, QProgressBar, QSizePolicy, QDialog)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QPalette, QColor
 from dotenv import load_dotenv
-
-load_dotenv()
+from setup_wizard import run_setup_wizard
 
 class LoadAssignmentsThread(QThread):
     """Thread for loading assignments to prevent UI blocking"""
@@ -34,9 +33,31 @@ class AssignmentTrackerApp(QMainWindow):
         self.file_path = file_path
         self.current_assignment = None
         self.is_updating = False
+        
+        # Check for configuration first
+        if not self.check_configuration():
+            return
+            
         self.setup_ui()
         self.setup_clients()
         self.apply_modern_styling()
+    
+    def check_configuration(self):
+        """Check if configuration exists, run setup wizard if not"""
+        config_dir = os.path.expanduser("~/.assignment_tracker")
+        creds_path = os.path.join(config_dir, "credentials.json")
+        env_path = os.path.join(config_dir, ".env")
+        
+        if not os.path.exists(creds_path) or not os.path.exists(env_path):
+            if not run_setup_wizard():
+                QMessageBox.information(None, "Setup Required", 
+                    "Setup is required to use Assignment Tracker.")
+                sys.exit(0)
+        
+        # Load environment from config directory
+        load_dotenv(env_path)
+        self.credentials_path = creds_path
+        return True
     
     def setup_ui(self):
         self.setWindowTitle("Assignment Tracker")
@@ -63,6 +84,23 @@ class AssignmentTrackerApp(QMainWindow):
             file_label.setFont(QFont("Arial", 10))
             file_label.setStyleSheet("color: #666;")
             header_layout.addWidget(file_label)
+        
+        # Add settings button
+        settings_button = QPushButton("Settings")
+        settings_button.clicked.connect(self.open_settings)
+        settings_button.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        header_layout.addWidget(settings_button)
         
         main_layout.addLayout(header_layout)
         
@@ -309,11 +347,15 @@ class AssignmentTrackerApp(QMainWindow):
     def setup_clients(self):
         try:
             self.status_text.append("Initializing clients...")
-            self.sheet_reader = SheetReader("credentials.json", os.getenv("SHEET_ID"))
+            self.sheet_reader = SheetReader(self.credentials_path, os.getenv("SHEET_ID"))
             self.status_text.append("Clients initialized successfully")
             self.load_assignments()
         except Exception as e:
             self.status_text.append(f"Error initializing clients: {str(e)}")
+            QMessageBox.critical(self, "Configuration Error", 
+                f"Failed to initialize Google Sheets connection:\n{str(e)}\n\n"
+                "Please check your credentials and try again.")
+            sys.exit(1)
     
     def load_assignments(self):
         """Load assignments in a separate thread"""
@@ -451,6 +493,19 @@ class AssignmentTrackerApp(QMainWindow):
             error_msg = f"Failed to save assignment: {str(e)}"
             self.status_text.append(f"{error_msg}")
             QMessageBox.critical(self, "Error", error_msg)
+    
+    def open_settings(self):
+        """Open settings dialog to reconfigure credentials"""
+        reply = QMessageBox.question(self, "Reconfigure Settings", 
+            "Do you want to reconfigure your Google Sheets credentials?\n\n"
+            "This will replace your current configuration.",
+            QMessageBox.Yes | QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            if run_setup_wizard():
+                QMessageBox.information(self, "Settings Updated", 
+                    "Settings updated successfully! Please restart the application for changes to take effect.")
+                sys.exit(0)
 
 def main():
     app = QApplication(sys.argv)
@@ -462,15 +517,11 @@ def main():
     file_path = None
     if len(sys.argv) > 1:
         file_path = sys.argv[1]
-        print(f"Opened with file: {file_path}")
-        # Extract just the filename for display
-        actual_file_path = os.path.basename(file_path)
-
-        print(f"Processing file: {actual_file_path}")
+        print(f"Processing file: {file_path}")
     else:
         print("No file specified via command line")
 
-    window = AssignmentTrackerApp(actual_file_path)
+    window = AssignmentTrackerApp(file_path)
     window.show()
     
     sys.exit(app.exec_())
